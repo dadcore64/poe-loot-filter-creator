@@ -4,6 +4,8 @@ from app.filter_generator import generate_custom_blocks, fetch_neversink_latest
 from app.linter import validate_filter_syntax
 import uuid
 
+from app.fallback_filter import FALLBACK_FILTER
+
 main_bp = Blueprint('main', __name__)
 
 # In-memory store for base filters so we don't spam the GitHub API
@@ -29,6 +31,8 @@ def generate_rules():
         
         return jsonify({'custom_rules': custom_rules})
     except Exception as e:
+        import traceback
+        print(f"POB PARSE ERROR: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 400
 
 @main_bp.route('/api/validate', methods=['POST'])
@@ -44,11 +48,10 @@ def validate_rules():
 
 @main_bp.route('/api/download', methods=['POST'])
 def download_filter():
-    # Use request.form for normal form submission or request.json for AJAX
-    if request.is_json:
-        data = request.json
-    else:
-        data = request.form
+    # Use request.form for normal form submission
+    data = request.form if request.form else request.json
+    if not data:
+        return "No data received.", 400
 
     rules_text = data.get('rules_text', '')
     filter_name = data.get('filter_name', 'custom_build').strip()
@@ -63,22 +66,25 @@ def download_filter():
     # Fetch base filter
     if CACHE['neversink'] is None:
         try:
+            print("Attempting to fetch latest NeverSink filter from GitHub...")
             CACHE['neversink'] = fetch_neversink_latest()
         except Exception as e:
             import traceback
             print(f"CRITICAL FETCH ERROR: {traceback.format_exc()}")
-            return f"Error fetching base filter: {e}", 500
+            # DO NOT return yet, let it check if None below
             
-    if CACHE['neversink'] is None:
-         return "Base filter is not available from GitHub.", 500
+    # Fallback if fetch failed or returned None
+    base_text = CACHE['neversink']
+    if base_text is None:
+        print("GitHub fetch failed. Using local FALLBACK_FILTER.")
+        base_text = FALLBACK_FILTER
         
-    final_filter = rules_text + "\n" + CACHE['neversink']
+    final_filter = rules_text + "\n" + base_text
     
     return Response(
         final_filter,
         mimetype="text/plain",
         headers={
             "Content-disposition": f"attachment; filename={filter_name}",
-            "Content-Type": "text/plain"
         }
     )
