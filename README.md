@@ -27,9 +27,17 @@ This application is built with Python and Flask.
    ```
 
 2. Create and activate a virtual environment:
+   
+   **On macOS/Linux:**
    ```bash
    python3 -m venv venv
-   source venv/bin/activate  # On Windows use: venv\Scripts\activate
+   source venv/bin/activate
+   ```
+   
+   **On Windows:**
+   ```powershell
+   python -m venv venv
+   .\venv\Scripts\activate
    ```
 
 3. Install the dependencies:
@@ -38,12 +46,20 @@ This application is built with Python and Flask.
    ```
 
 4. Run the application:
+
+   **On macOS/Linux:**
    ```bash
    # Development mode
    python run.py
    
    # Or using Gunicorn (Production/WSGI)
    gunicorn -b 127.0.0.1:5000 run:app
+   ```
+   
+   **On Windows:**
+   ```powershell
+   # Use the built-in Flask development server (Gunicorn is not supported on Windows)
+   python run.py
    ```
 
 5. Open your browser and navigate to `http://127.0.0.1:5000`.
