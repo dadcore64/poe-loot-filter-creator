@@ -56,7 +56,13 @@ def download_filter():
         
     # Fetch base filter
     if CACHE['neversink'] is None:
-        CACHE['neversink'] = fetch_neversink_latest()
+        try:
+            CACHE['neversink'] = fetch_neversink_latest()
+        except Exception as e:
+            return f"Error fetching base filter: {e}", 500
+            
+    if CACHE['neversink'] is None:
+         return "Base filter is not available.", 500
         
     final_filter = rules_text + "\n" + CACHE['neversink']
     

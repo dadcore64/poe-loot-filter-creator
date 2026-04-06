@@ -55,10 +55,13 @@ def fetch_neversink_latest():
                 req2 = urllib.request.Request(download_url, headers={'User-Agent': 'poe-loot-filter-creator'})
                 with urllib.request.urlopen(req2) as resp2:
                     # Return the raw filter text
-                    return resp2.read().decode('utf-8')
+                    content = resp2.read().decode('utf-8')
+                    if content:
+                        return content
     except Exception as e:
         print(f"Error fetching NeverSink filter: {e}")
-        return "# Error fetching base filter. Please append custom rules manually."
+    
+    return None
 
 def assemble_filter(extracted_data, base_filter_text=None):
     """Combines custom blocks with the base filter."""
