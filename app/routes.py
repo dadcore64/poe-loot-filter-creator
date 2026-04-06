@@ -44,15 +44,21 @@ def validate_rules():
 
 @main_bp.route('/api/download', methods=['POST'])
 def download_filter():
-    rules_text = request.form.get('rules_text', '')
-    filter_name = request.form.get('filter_name', 'custom_build').strip()
+    # Use request.form for normal form submission or request.json for AJAX
+    if request.is_json:
+        data = request.json
+    else:
+        data = request.form
+
+    rules_text = data.get('rules_text', '')
+    filter_name = data.get('filter_name', 'custom_build').strip()
     if not filter_name.endswith('.filter'):
         filter_name += '.filter'
         
     # Validate one last time before combining
     errors = validate_filter_syntax(rules_text)
     if errors:
-        return "Invalid syntax in custom rules", 400
+        return f"Invalid syntax in custom rules: {', '.join(errors)}", 400
         
     # Fetch base filter
     if CACHE['neversink'] is None:
@@ -60,17 +66,19 @@ def download_filter():
             CACHE['neversink'] = fetch_neversink_latest()
         except Exception as e:
             import traceback
-            error_details = traceback.format_exc()
-            print(f"CRITICAL ERROR: {error_details}")
+            print(f"CRITICAL FETCH ERROR: {traceback.format_exc()}")
             return f"Error fetching base filter: {e}", 500
             
     if CACHE['neversink'] is None:
-         return "Base filter is not available.", 500
+         return "Base filter is not available from GitHub.", 500
         
     final_filter = rules_text + "\n" + CACHE['neversink']
     
     return Response(
         final_filter,
         mimetype="text/plain",
-        headers={"Content-disposition": f"attachment; filename={filter_name}"}
+        headers={
+            "Content-disposition": f"attachment; filename={filter_name}",
+            "Content-Type": "text/plain"
+        }
     )
