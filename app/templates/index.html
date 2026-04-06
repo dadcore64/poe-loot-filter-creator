@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PoE Build-to-Filter</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- CodeMirror CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material-darker.min.css">
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .header-brand {
+            color: #d4af37; /* PoE Gold */
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .card {
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+        }
+        .CodeMirror {
+            height: 400px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .btn-poe {
+            background-color: #d4af37;
+            color: #000;
+            font-weight: bold;
+        }
+        .btn-poe:hover {
+            background-color: #b5952f;
+            color: #000;
+        }
+        .error-list { color: #ff6b6b; }
+        .success-text { color: #51cf66; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4 border-bottom border-secondary">
+    <div class="container">
+        <span class="navbar-brand header-brand">
+            <img src="https://web.poecdn.com/image/favicon/favicon.ico" width="24" height="24" class="d-inline-block align-text-top me-2" alt="">
+            Build-to-Filter Creator
+        </span>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Step 1: Input -->
+            <div class="card mb-4 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title text-warning">Step 1: Import Path of Building</h5>
+                    <p class="text-muted small">Paste your Base64 PoB Export Code below to extract gear bases and socket links.</p>
+                    <textarea id="pob-input" class="form-control bg-dark text-light mb-3" rows="4" placeholder="e.g. eNrt..."></textarea>
+                    <button id="btn-generate" class="btn btn-poe w-100">Extract & Generate Rules</button>
+                    <div id="loading" class="text-center mt-3 d-none">
+                        <div class="spinner-border text-warning" role="status"></div>
+                        <p class="mt-2">Decoding PoB & Generating Syntax...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Editor -->
+            <div id="editor-section" class="card mb-4 shadow-sm d-none">
+                <div class="card-body">
+                    <h5 class="card-title text-warning">Step 2: Review Custom Overrides</h5>
+                    <p class="text-muted small">These rules will be injected at the <b>very top</b> of the latest NeverSink economy filter. Feel free to edit them.</p>
+                    
+                    <form id="download-form" action="/api/download" method="POST">
+                        <textarea id="code-editor" name="rules_text"></textarea>
+                        
+                        <div class="mt-3">
+                            <label class="form-label">Filter Name</label>
+                            <input type="text" class="form-control bg-dark text-light" name="filter_name" value="MyBuild_NeverSink" required>
+                        </div>
+
+                        <div id="validation-errors" class="mt-3 error-list d-none"></div>
+                        <div id="validation-success" class="mt-3 success-text d-none">Syntax Valid! Filter is ready to download.</div>
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="button" id="btn-validate" class="btn btn-outline-warning flex-grow-1">Validate Syntax</button>
+                            <button type="submit" id="btn-download" class="btn btn-success flex-grow-1" disabled>Download .filter</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+<script>
+    // Initialize CodeMirror
+    const cmElement = document.getElementById('code-editor');
+    const editor = CodeMirror.fromTextArea(cmElement, {
+        lineNumbers: true,
+        theme: 'material-darker',
+        mode: 'text/plain' // PoE doesn't have a standard mode, plain text works well
+    });
+
+    // Step 1: Generate Rules
+    document.getElementById('btn-generate').addEventListener('click', async () => {
+        const pobCode = document.getElementById('pob-input').value.trim();
+        if(!pobCode) { alert("Please paste a PoB code."); return; }
+
+        document.getElementById('btn-generate').classList.add('d-none');
+        document.getElementById('loading').classList.remove('d-none');
+        document.getElementById('editor-section').classList.add('d-none');
+
+        try {
+            const res = await fetch('/api/generate_rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pob_code: pobCode })
+            });
+            const data = await res.json();
+            
+            if(!res.ok) throw new Error(data.error || "Failed to parse.");
+
+            editor.setValue(data.custom_rules);
+            setTimeout(() => editor.refresh(), 100);
+            
+            // Show Step 2
+            document.getElementById('editor-section').classList.remove('d-none');
+            // Reset validation states
+            document.getElementById('btn-download').disabled = true;
+            document.getElementById('validation-errors').classList.add('d-none');
+            document.getElementById('validation-success').classList.add('d-none');
+
+        } catch (e) {
+            alert("Error: " + e.message);
+        } finally {
+            document.getElementById('btn-generate').classList.remove('d-none');
+            document.getElementById('loading').classList.add('d-none');
+        }
+    });
+
+    // Step 2: Validate
+    document.getElementById('btn-validate').addEventListener('click', async () => {
+        const rulesText = editor.getValue();
+        const errDiv = document.getElementById('validation-errors');
+        const succDiv = document.getElementById('validation-success');
+        const dlBtn = document.getElementById('btn-download');
+
+        errDiv.classList.add('d-none');
+        succDiv.classList.add('d-none');
+        dlBtn.disabled = true;
+
+        try {
+            const res = await fetch('/api/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rules_text: rulesText })
+            });
+            const data = await res.json();
+
+            if (data.valid) {
+                succDiv.classList.remove('d-none');
+                dlBtn.disabled = false;
+            } else {
+                errDiv.innerHTML = "<strong>Syntax Errors Found:</strong><br>" + data.errors.join("<br>");
+                errDiv.classList.remove('d-none');
+            }
+        } catch (e) {
+            alert("Validation failed: " + e.message);
+        }
+    });
+
+    // Editor change event resets validation
+    editor.on('change', () => {
+        document.getElementById('btn-download').disabled = true;
+        document.getElementById('validation-success').classList.add('d-none');
+    });
+</script>
+</body>
+</html>

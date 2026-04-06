@@ -37,4 +37,7 @@ def create_app(test_config=None):
     def health():
         return 'OK'
 
+    from app.routes import main_bp
+    app.register_blueprint(main_bp)
+
     return app
