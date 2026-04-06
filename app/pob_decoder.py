@@ -68,6 +68,9 @@ def parse_pob_xml(xml_string):
                 rarity = lines[0].split(': ')[1].strip()
                 if rarity in ['RARE', 'UNIQUE']:
                     base_type = lines[2]
+                    # Strip PoB specific flavor text in parentheses, e.g. "Two-Stone Ring (Cold/Lightning)" -> "Two-Stone Ring"
+                    base_type = re.sub(r'\s\(.*\)', '', base_type)
+                    
                     if not base_type.startswith('{') and "Jewel" not in base_type:
                         extracted_data['bases'].add(base_type)
                         
