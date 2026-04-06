@@ -69,7 +69,9 @@ def fetch_neversink_latest():
                                 with z.open(file_path) as f:
                                     return f.read().decode('utf-8')
     except Exception as e:
-        print(f"Error fetching/parsing NeverSink source: {e}")
+        import traceback
+        print(f"DEBUG: NeverSink Fetch Exception: {e}")
+        print(traceback.format_exc())
         raise e
     
     return None
