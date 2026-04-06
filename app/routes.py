@@ -59,6 +59,9 @@ def download_filter():
         try:
             CACHE['neversink'] = fetch_neversink_latest()
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"CRITICAL ERROR: {error_details}")
             return f"Error fetching base filter: {e}", 500
             
     if CACHE['neversink'] is None:
