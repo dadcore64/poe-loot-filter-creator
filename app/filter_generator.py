@@ -38,35 +38,38 @@ def generate_custom_blocks(extracted_data):
     return "\n".join(blocks)
 
 def fetch_neversink_latest():
-    """Fetches the latest 1_Regular.filter release from NeverSink's GitHub."""
-    url = "https://api.github.com/repos/NeverSinkDev/NeverSink-Filter/releases/latest"
+    """Fetches the latest source from NeverSink's GitHub and extracts 1_Regular.filter."""
+    # Since recent releases don't have built assets, we fetch the source zipball
+    # and find the 1_Regular.filter within it.
+    tag_url = "https://api.github.com/repos/NeverSinkDev/NeverSink-Filter/releases/latest"
     
-    # Bypass SSL verification for local development environments with certificate issues
     import ssl
+    import zipfile
+    import io
+    
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
 
-    req = urllib.request.Request(url, headers={'User-Agent': 'poe-loot-filter-creator'})
+    req = urllib.request.Request(tag_url, headers={'User-Agent': 'poe-loot-filter-creator'})
     try:
         with urllib.request.urlopen(req, context=ctx) as response:
             data = json.loads(response.read().decode())
+            zip_url = data.get('zipball_url')
             
-            download_url = None
-            for asset in data.get('assets', []):
-                if asset['name'] == '1_Regular.filter':
-                    download_url = asset['browser_download_url']
-                    break
-            
-            if download_url:
-                req2 = urllib.request.Request(download_url, headers={'User-Agent': 'poe-loot-filter-creator'})
+            if zip_url:
+                req2 = urllib.request.Request(zip_url, headers={'User-Agent': 'poe-loot-filter-creator'})
                 with urllib.request.urlopen(req2, context=ctx) as resp2:
-                    # Return the raw filter text
-                    content = resp2.read().decode('utf-8')
-                    if content:
-                        return content
+                    zip_data = resp2.read()
+                    with zipfile.ZipFile(io.BytesIO(zip_data)) as z:
+                        # Find the 1_Regular.filter file inside the zip
+                        # GitHub zipballs have a top-level folder like NeverSink-Filter-tagname/
+                        for file_path in z.namelist():
+                            if file_path.endswith('1_Regular.filter'):
+                                with z.open(file_path) as f:
+                                    return f.read().decode('utf-8')
     except Exception as e:
-        # Re-raise so the route can catch and log it
+        print(f"Error fetching/parsing NeverSink source: {e}")
         raise e
     
     return None
