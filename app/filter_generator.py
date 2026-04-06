@@ -37,10 +37,11 @@ def generate_custom_blocks(extracted_data):
     blocks.append("")
     return "\n".join(blocks)
 
+import os
+import time
+
 def fetch_neversink_latest():
-    """Fetches the latest source from NeverSink's GitHub and extracts 1_Regular.filter."""
-    # Since recent releases don't have built assets, we fetch the source zipball
-    # and find the 1_Regular.filter within it.
+    """Fetches the latest source from NeverSink's GitHub and extracts 1-REGULAR.filter."""
     tag_url = "https://api.github.com/repos/NeverSinkDev/NeverSink-Filter/releases/latest"
     
     import ssl
@@ -62,12 +63,22 @@ def fetch_neversink_latest():
                 with urllib.request.urlopen(req2, context=ctx) as resp2:
                     zip_data = resp2.read()
                     with zipfile.ZipFile(io.BytesIO(zip_data)) as z:
-                        # Find the 1_Regular.filter file inside the zip
-                        # GitHub zipballs have a top-level folder like NeverSink-Filter-tagname/
+                        # Find the main 1-REGULAR.filter file inside the zip
+                        target_file = None
                         for file_path in z.namelist():
-                            if file_path.endswith('1_Regular.filter'):
-                                with z.open(file_path) as f:
-                                    return f.read().decode('utf-8')
+                            # The main filter is in the root of the zip (excluding the top-level GitHub folder)
+                            # e.g. NeverSinkDev-NeverSink-Filter-fe81f49/NeverSink's filter - 1-REGULAR.filter
+                            if file_path.endswith("NeverSink's filter - 1-REGULAR.filter"):
+                                target_file = file_path
+                                break
+                        
+                        if target_file:
+                            with z.open(target_file) as f:
+                                content = f.read().decode('utf-8')
+                                if content:
+                                    # Save as backup
+                                    save_filter_backup(content)
+                                    return content
     except Exception as e:
         import traceback
         print(f"DEBUG: NeverSink Fetch Exception: {e}")
@@ -75,6 +86,36 @@ def fetch_neversink_latest():
         raise e
     
     return None
+
+def save_filter_backup(content):
+    """Saves the provided filter content to a backup file with a timestamp."""
+    backup_dir = os.path.join(os.getcwd(), 'instance', 'backups')
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # We keep two files: one for current content, one for metadata
+    content_path = os.path.join(backup_dir, 'neversink_latest.filter')
+    meta_path = os.path.join(backup_dir, 'neversink_meta.json')
+    
+    with open(content_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    with open(meta_path, 'w', encoding='utf-8') as f:
+        json.dump({'timestamp': time.time()}, f)
+
+def get_filter_backup():
+    """Returns the content and timestamp of the latest backup filter."""
+    backup_dir = os.path.join(os.getcwd(), 'instance', 'backups')
+    content_path = os.path.join(backup_dir, 'neversink_latest.filter')
+    meta_path = os.path.join(backup_dir, 'neversink_meta.json')
+    
+    if os.path.exists(content_path) and os.path.exists(meta_path):
+        with open(content_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        with open(meta_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+        return content, meta.get('timestamp')
+    
+    return None, None
 
 def assemble_filter(extracted_data, base_filter_text=None):
     """Combines custom blocks with the base filter."""

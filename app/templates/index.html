@@ -73,6 +73,10 @@
             <!-- Step 2: Editor -->
             <div id="editor-section" class="card mb-4 shadow-sm d-none">
                 <div class="card-body">
+                    <div id="fetch-alert" class="alert alert-info d-none">
+                        Checking for latest NeverSink base filter...
+                    </div>
+                    
                     <h5 class="card-title text-warning">Step 2: Review Custom Overrides</h5>
                     <p class="text-muted small">These rules will be injected at the <b>very top</b> of the latest NeverSink economy filter. Feel free to edit them.</p>
                     
@@ -141,6 +145,9 @@
             document.getElementById('validation-errors').classList.add('d-none');
             document.getElementById('validation-success').classList.add('d-none');
 
+            // Trigger NeverSink Check
+            checkNeverSink();
+
         } catch (e) {
             alert("Error: " + e.message);
         } finally {
@@ -148,6 +155,46 @@
             document.getElementById('loading').classList.add('d-none');
         }
     });
+
+    async function checkNeverSink() {
+        const alertDiv = document.getElementById('fetch-alert');
+        alertDiv.classList.remove('d-none');
+        alertDiv.className = "alert alert-info";
+        alertDiv.innerText = "Checking for latest NeverSink base filter...";
+
+        try {
+            const res = await fetch('/api/check_neversink');
+            const data = await res.json();
+
+            if (data.available) {
+                alertDiv.className = "alert alert-success";
+                alertDiv.innerText = "Latest NeverSink base filter successfully loaded from GitHub!";
+            } else if (data.has_backup) {
+                alertDiv.className = "alert alert-warning d-flex justify-content-between align-items-center";
+                alertDiv.innerHTML = `
+                    <span>We couldn't get the latest release of NeverSink's filter. Use local backup from ${data.backup_time}?</span>
+                    <button class="btn btn-sm btn-dark" onclick="useBackup()">Use Backup</button>
+                `;
+            } else {
+                alertDiv.className = "alert alert-danger";
+                alertDiv.innerText = "Error: Could not reach GitHub and no local backup found.";
+            }
+        } catch (e) {
+            alertDiv.className = "alert alert-danger";
+            alertDiv.innerText = "Network error checking filter status.";
+        }
+    }
+
+    async function useBackup() {
+        const res = await fetch('/api/use_backup', { method: 'POST' });
+        if (res.ok) {
+            const alertDiv = document.getElementById('fetch-alert');
+            alertDiv.className = "alert alert-warning";
+            alertDiv.innerText = "Using local backup filter base.";
+        } else {
+            alert("Failed to load backup.");
+        }
+    }
 
     // Step 2: Validate
     document.getElementById('btn-validate').addEventListener('click', async () => {

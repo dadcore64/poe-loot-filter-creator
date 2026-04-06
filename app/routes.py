@@ -1,16 +1,15 @@
 from flask import Blueprint, render_template, request, jsonify, Response
 from app.pob_decoder import decode_pob_string, parse_pob_xml
-from app.filter_generator import generate_custom_blocks, fetch_neversink_latest
+from app.filter_generator import generate_custom_blocks, fetch_neversink_latest, get_filter_backup
 from app.linter import validate_filter_syntax
 import uuid
-
+import datetime
 from app.fallback_filter import FALLBACK_FILTER
 
 main_bp = Blueprint('main', __name__)
 
-# In-memory store for base filters so we don't spam the GitHub API
-# In production, use Redis or a file cache with a TTL
-CACHE = {'neversink': None}
+# In-memory store for base filters
+CACHE = {'neversink': None, 'is_backup': False}
 
 @main_bp.route('/')
 def index():
@@ -46,9 +45,40 @@ def validate_rules():
         'errors': errors
     })
 
+@main_bp.route('/api/check_neversink', methods=['GET'])
+def check_neversink():
+    """Checks if we can fetch the latest filter. If not, returns backup metadata."""
+    if CACHE['neversink'] is not None:
+        return jsonify({'available': True, 'is_backup': CACHE['is_backup']})
+
+    try:
+        CACHE['neversink'] = fetch_neversink_latest()
+        CACHE['is_backup'] = False
+        return jsonify({'available': True, 'is_backup': False})
+    except Exception as e:
+        print(f"FETCH FAILED: {e}")
+        content, timestamp = get_filter_backup()
+        if content:
+            dt = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            return jsonify({
+                'available': False,
+                'has_backup': True,
+                'backup_time': dt
+            })
+        return jsonify({'available': False, 'has_backup': False})
+
+@main_bp.route('/api/use_backup', methods=['POST'])
+def use_backup():
+    """Explicitly tells the app to use the local backup filter."""
+    content, timestamp = get_filter_backup()
+    if content:
+        CACHE['neversink'] = content
+        CACHE['is_backup'] = True
+        return jsonify({'success': True})
+    return jsonify({'success': False, 'error': 'No backup found.'}), 404
+
 @main_bp.route('/api/download', methods=['POST'])
 def download_filter():
-    # Use request.form for normal form submission
     data = request.form if request.form else request.json
     if not data:
         return "No data received.", 400
@@ -58,28 +88,24 @@ def download_filter():
     if not filter_name.endswith('.filter'):
         filter_name += '.filter'
         
-    # Validate one last time before combining
     errors = validate_filter_syntax(rules_text)
     if errors:
         return f"Invalid syntax in custom rules: {', '.join(errors)}", 400
         
-    # Fetch base filter
     if CACHE['neversink'] is None:
         try:
-            print("Attempting to fetch latest NeverSink filter from GitHub...")
             CACHE['neversink'] = fetch_neversink_latest()
-        except Exception as e:
-            import traceback
-            print(f"CRITICAL FETCH ERROR: {traceback.format_exc()}")
-            # DO NOT return yet, let it check if None below
-            
-    # Fallback if fetch failed or returned None
-    base_text = CACHE['neversink']
-    if base_text is None:
-        print("GitHub fetch failed. Using local FALLBACK_FILTER.")
-        base_text = FALLBACK_FILTER
+            CACHE['is_backup'] = False
+        except Exception:
+            content, ts = get_filter_backup()
+            if content:
+                CACHE['neversink'] = content
+                CACHE['is_backup'] = True
+            else:
+                CACHE['neversink'] = FALLBACK_FILTER
+                CACHE['is_backup'] = True
         
-    final_filter = rules_text + "\n" + base_text
+    final_filter = rules_text + "\n" + CACHE['neversink']
     
     return Response(
         final_filter,
