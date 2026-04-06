@@ -20,7 +20,7 @@ def validate_filter_syntax(filter_text):
             continue
             
         # Check if line is a block starter
-        if line in valid_blocks:
+        if any(line.startswith(vb) for vb in valid_blocks):
             in_block = True
             continue
             
