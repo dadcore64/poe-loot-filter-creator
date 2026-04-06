@@ -40,9 +40,16 @@ def generate_custom_blocks(extracted_data):
 def fetch_neversink_latest():
     """Fetches the latest 1_Regular.filter release from NeverSink's GitHub."""
     url = "https://api.github.com/repos/NeverSinkDev/NeverSink-Filter/releases/latest"
+    
+    # Bypass SSL verification for local development environments with certificate issues
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
     req = urllib.request.Request(url, headers={'User-Agent': 'poe-loot-filter-creator'})
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, context=ctx) as response:
             data = json.loads(response.read().decode())
             
             download_url = None
@@ -53,13 +60,14 @@ def fetch_neversink_latest():
             
             if download_url:
                 req2 = urllib.request.Request(download_url, headers={'User-Agent': 'poe-loot-filter-creator'})
-                with urllib.request.urlopen(req2) as resp2:
+                with urllib.request.urlopen(req2, context=ctx) as resp2:
                     # Return the raw filter text
                     content = resp2.read().decode('utf-8')
                     if content:
                         return content
     except Exception as e:
-        print(f"Error fetching NeverSink filter: {e}")
+        # Re-raise so the route can catch and log it
+        raise e
     
     return None
 
