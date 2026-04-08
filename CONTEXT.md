@@ -37,6 +37,9 @@ To generate custom Path of Exile loot filter override blocks based on a Path of 
    - CodeMirror 5 is used for the code editor, utilizing the `material-darker` theme for a PoE-appropriate dark aesthetic.
    - Flow: `Generate (POST /api/generate_rules)` -> `Review in CodeMirror` -> `Validate (POST /api/validate)` -> `Download (POST /api/download)`.
 
+5. **Workspace Convention**:
+   - This repository must remain nested under the `repo/` directory in the local workspace, rather than polluting the workspace root.
+
 ## Future Expansion
 - OAuth integration with the official Path of Exile API to allow direct cloud syncing of filters instead of local downloads.
 - Deeper PoB XML parsing (e.g., extracting exact desired stats like "+Max Life" and linking them to base types).
