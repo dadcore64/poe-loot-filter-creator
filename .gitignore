@@ -5,3 +5,10 @@ env/
 .env
 .pytest_cache/
 *.log
+
+# Token Efficiency Rules (AI SAFE2)
+*.har
+*.zip
+*.dump
+*.sql
+
